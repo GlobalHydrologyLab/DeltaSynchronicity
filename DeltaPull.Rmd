@@ -18,12 +18,11 @@ library(earthEngineGrabR)
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## This is really just a space to experiment with the reflectanc pull utility.  All functions and source code are saved elsewhere.  The result of the pull will be shown in a file named 'ReflectancePull_[pullName].html'
+## Here we pull down the landsat stacks for all the Deltas.  We do three distinct pulls, one using the USGS dynamic surfact water extent water mask (only water pixels), one masking out water pixels (only land pixels), and one without any masks.  In combination this allows us to see what proportion of each delta polygon is water.
 
-Specifically, python pull is in 'ReflPullpy.py' and the pull function itself is in 'ReflPullFuncs'
-
-```{r cars}
-##  Identify the shapefile with the Delta's in it and download it.
+### All functions are saved in PullFuncitons.py and ReflPullFuncs.R.  The parameters of each pull are shown in a file named 'ReflectancePull_[pullName].html'
+```{r, eval = F}
+##  Identify the shapefile with the Delta's in it and download it.  This was originally made in Google Enginge using high resolution imagery.
 shp <- drive_ls('DeltaX_SampleLocs')
 
 for(i in c(1:nrow(shp))){
@@ -33,6 +32,9 @@ for(i in c(1:nrow(shp))){
 
 ##It's a little messy coming out of EE so do some munging.
 deltas <- st_read('data/in/DeltaExport.shp')
+
+unique(deltas$L)
+unique(deltas$S)
 
 check <- deltas %>% 
   mutate(location = ifelse(L %in% c('low', 'Low', 'D', 'L', 'Down'), 'Downstream',
@@ -49,7 +51,7 @@ check <- deltas %>%
 st_write(check, 'data/out/DeltaSamples.shp')
 ```
 
-```{r}
+```{r, eval = F}
 # ## The list below are the possible arguments to pass to the Earthe Engine Pull Function
 
 # #path to local python with ee authentication
@@ -80,6 +82,7 @@ st_write(check, 'data/out/DeltaSamples.shp')
 ## Set up earth engine environment
 ee_grab_install(clean_environment = T, clean_credentials = T)
 
+## Run all of our reflectance pulls, you can check the status of each pull in Earth Engine.
 source('ReflPullFuncs.R')
 
 reflectancePull(pullName = 'DeltaX_dswe', shapefile = 'shps/DeltaSamples.shp', idCol = 'id', mask = 'dswe', driveFolder = 'DeltaX_dswe', dlDir = 'pullData/dswe', cloudyFeature = 1000, cloudyScene = 1000)
@@ -91,10 +94,13 @@ reflectancePull(pullName = 'DelaX_land', shapefile = 'shps/DeltaSamples.shp', id
 
 ```
 
-## Check pull
+## Download all the pull data
 
-```{r}
-filesUp <- st_read('shps/DeltaSamples.shp')
+```{r, eval = F}
+##Polygons sent to EE
+filesUp <- st_read('data/in/DeltaSamples.shp')
+
+## Land Pull
 files <- drive_ls('DeltaX_land')
 files <- files %>% filter(!name %in% list.files('pullData/land/'))
 
@@ -102,6 +108,7 @@ for(i in c(1:nrow(files))){
   drive_download(as_id(files$id[i]), path = paste0('pullData/land/', files$name[i]), overwrite = T)
 }
 
+## No Mask Pull
 files <- drive_ls('DeltaX_noMask')
 files <- files %>% filter(!name %in% list.files('pullData/noMask/'))
 
@@ -109,6 +116,7 @@ for(i in c(1:nrow(files))){
   drive_download(as_id(files$id[i]), path = paste0('pullData/noMask/', files$name[i]), overwrite = T)
 }
 
+## Water Pull
 files <- drive_ls('DeltaX_dswe')
 files <- files %>% filter(!name %in% list.files('pullData/dswe/'))
 
@@ -117,21 +125,10 @@ for(i in c(1:nrow(files))){
 }
 ```
 
-## read in the data
+## Do a little munging and save the data locally.
 
-```{r}
-# dswe <- list.files('pullData/dswe', full.names = T) %>% map_dfr(., read_csv) %>%
-#   filter(!is.na(blue)) %>%
-#   select(-.geo) %>%
-#   right_join(filesUp %>%
-#                st_centroid() %>%
-#                rowwise() %>%
-#                mutate(long = geometry[1],
-#                       lat = geometry[2]))
-# 
-# write_csv(dswe, 'out/Deltas_dswe_mask.csv')
-
-nm <- list.files('pullData/land', full.names = T) %>% map_dfr(., read_csv) %>%
+```{r, eval = F}
+dswe <- list.files('pullData/dswe', full.names = T) %>% map_dfr(., read_csv) %>%
   filter(!is.na(blue)) %>%
   select(-.geo) %>%
   right_join(filesUp %>%
@@ -140,24 +137,47 @@ nm <- list.files('pullData/land', full.names = T) %>% map_dfr(., read_csv) %>%
                mutate(long = geometry[1],
                       lat = geometry[2]))
 
-write_csv(nm, 'out/Deltas_land.csv')
+write_csv(dswe, 'data/out/Deltas_dswe_mask.csv')
+
+land <- list.files('pullData/land', full.names = T) %>% map_dfr(., read_csv) %>%
+  filter(!is.na(blue)) %>%
+  select(-.geo) %>%
+  right_join(filesUp %>%
+               st_centroid() %>%
+               rowwise() %>%
+               mutate(long = geometry[1],
+                      lat = geometry[2]))
+
+write_csv(land, 'data/out/Deltas_land.csv')
+
+nm <- list.files('pullData/noMask', full.names = T) %>% map_dfr(., read_csv) %>%
+  filter(!is.na(blue)) %>%
+  select(-.geo) %>%
+  right_join(filesUp %>%
+               st_centroid() %>%
+               rowwise() %>%
+               mutate(long = geometry[1],
+                      lat = geometry[2]))
+
+write_csv(nm, 'data/out/Deltas_noMask.csv')
 ```
 
 ```{r}
 ## Clean up the dataset for Evan
-deltas <- read.csv('out/Deltas_dswe_mask.csv') %>%
+deltas <- read.csv('data/out/Deltas_dswe.csv') %>%
               mutate(pull = 'dswe') %>%
               filter(surface == 'Water') %>% 
-  bind_rows(read.csv('out/Deltas_land_mask.csv') %>%
+  bind_rows(read.csv('data/out/Deltas_land.csv') %>%
               mutate(pull = 'land') %>%
               filter(surface == 'Land'))
 
-dp <- read.csv('out/Deltas_dswe_mask.csv') %>%
+## The dnieper was accidentally mislabeled in the pull, quickly fix that
+dp <- read.csv('data/out/Deltas_dswe.csv') %>%
   mutate(pull = 'dswe') %>%
   filter(Delta == 'Dnieper', 
          surface == 'Land') %>%
   mutate(surface = 'Water') %>%
-  bind_rows(read.csv('out/Deltas_land_mask.csv') %>%
+  bind_rows(read.csv('data/out/Deltas_land.csv') %>%
               mutate(pull = 'land') %>%
               filter(Delta == 'Dnieper',
                      surface == 'Water') %>%
@@ -168,7 +188,7 @@ deltas <- deltas %>%
   bind_rows(dp)
 
 # Figure out the total number of pixels for each delta
-noMask <- read.csv('out/Deltas_noMask.csv') %>%
+noMask <- read.csv('data/out/Deltas_noMask.csv') %>%
   group_by(Delta, location, surface) %>%
   summarize(fullPx = max(pixelCount))
 
@@ -204,18 +224,14 @@ dClean <- deltas %>%
             gr = mean(gr, na.rm = T),
             ndssi = mean(ndssi, na.rm = T))
 
-write_csv(dClean, 'out/deltas_clean_VegUpdate.csv')
-
-
+write_csv(dClean, 'data/out/deltas_clean.csv')
 
 DeltaMonthCounts <- dClean %>% group_by(Delta, month) %>% summarize(n = n())
 
-MonthHeat <- ggplot(DeltaMonthCounts, aes(y = Delta, x = month, fill=n)) + geom_tile() + 
+ggplot(DeltaMonthCounts, aes(y = Delta, x = month, fill=n)) + geom_tile() + 
   scale_x_discrete(limits = c(1:12), breaks = c(1:12)) +
   expand_limits(x = c(1,12)) + 
   scale_fill_gradient( trans = 'log' )
-MonthHeat
-
 
 yrMonth = expand.grid(year = c(1984:2018), month = c(1:12), 
                       Delta = unique(filesUp$Delta),
@@ -237,9 +253,14 @@ mean(NaNas$count)
 
 hist(NaNas$count)
 
+## View were we're missing the data
+nanas.sf <- filesUp %>% left_join(NaNas) %>%
+  st_centroid()
 
-#Its alot! Check out no mask to see how many if we're not masking land/water
-nmClean <- read.csv('out/Deltas_noMask.csv') %>%
+mapview(nanas.sf, zcol = 'count')
+
+#Thats a lot! Check out no mask to see how many if we're not masking land/water
+nmClean <- read.csv('data/out/Deltas_noMask.csv') %>%
   mutate(year = year(date),
          month = month(date)) %>%
   group_by(Delta, location, surface, year, month) %>%
@@ -255,32 +276,11 @@ NaNas <- naCount %>%
 
 hist(NaNas$count)
 
+## View were we're missing the data
 nanas.sf <- filesUp %>% left_join(NaNas) %>%
   st_centroid()
 
 mapview(nanas.sf, zcol = 'count')
-
-miss <- dClean %>%
-  filter(Delta == 'Mississippi') %>%
-  right_join(expand.grid(month = c(1:12), year = c(1984:2018), location = unique(dClean$location), surface = unique(dClean$surface)))
-
-library(stlplus)
-
-missTS <- miss %>%
-  filter(surface == 'Water',
-         location == 'Downstream') %>%
-  stlplus(.$ndssi, s.window = 25, n.p = 12, sub.labels = c(1:12))
-
-ggplot(miss %>% filter(red < 2000), aes(x = date, y = red, color = surface)) + geom_point(alpha = .3) + geom_smooth() + facet_wrap(~location, scales = 'free')
-
-miss.seas <- miss %>%
-  mutate_at(vars(ndvi,red), scale) %>%
-  gather(ndvi:red, key = 'band', value = 'scaled.ref') %>%
-  filter((surface == 'Land' & band == 'ndvi')|(surface == 'Water' & band == 'red'))
-
-ggplot(miss.seas, aes(x = month, y = scaled.ref, color = band, linetype = surface)) + geom_smooth(se = F, span = .2) + facet_wrap(~location)
-
-
 ```
 
 
