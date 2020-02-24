@@ -1,0 +1,168 @@
+---
+title: "GEE_ReflectanceUtility"
+author: "Simon Topp"
+date: "4/19/2019"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+# This html summarizes the input arguments for a given reflectance pull and will display any errors thrown by Earth Engine for trouble shooting.
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(feather)
+library(reticulate)
+library(googledrive)
+library(sf)
+library(kableExtra)
+library(knitr)
+library(earthEngineGrabR)
+```
+
+
+```{r, echo = FALSE}
+####### Below are the arguments that get passed through to the function through a temporary yamlish file.
+
+# #path to local python with ee authentication
+# #pyEnv = 'earthEngineGrabR'
+# #path to google drive folder for download.
+# driveFolder = 'NLA_500'
+# #GEE asset path
+# shapefile = '/Users/simontopp/Google Drive/gits/aquaModel_ClarityTrends/out/sampleLakes/lakesEcoReg500.shp'
+# #ID column for geometries
+# idCol = 'COMID'
+# #Either Pekel Mask or DSWE
+# mask = 'dswe'
+# #If mask == dswe, water confidence level. Otherwise Pekel occurence threshold
+# threshold = 80
+# # Landsat collection, SR or TOA
+# collection = 'SR'
+# # Cloud filter for landsat scenes
+# cloudyScene = 50
+# # "Cloud" filter for non-water pixels over feature
+# cloudyFeature = .5
+# #start date
+# dateStart = '1984-01-01'
+# #End date
+# dateEnd = as.character(Sys.Date())
+# #Download directory for checking on completed tasks
+# dlDir = 'pullData/NLA_500'
+
+## Load in the arguments as defined in the function.
+load('tmpPullArgs.Rdata')
+
+#Read in the shapefile
+shapesUp = st_read(shapefile)
+
+#Define python path
+use_condaenv(pyEnv)
+#use_python('/usr/local/bin/python')
+
+#source_python('ReflPullpy.py')
+arg <- ls()[ls() %in% c('pullName', 'shapefile', 'idCol', 'pyEnv', 'cloudyFeature', 'cloudyScene', 'collection', 'dateStart', 'dateEnd', 'dlDir', 'driveFolder', 'mask', 'threshold')]
+
+tibble(Arguments = arg) %>%
+  mutate(Values = purrr::map(Arguments, get, envir = environment())) %>%
+  kable(caption = 'Arguments passed onto Earth Engine for the reflectance pull') %>%
+  kable_styling()
+```
+
+
+```{python, echo = F}
+#repl_python()
+#Import necessary libraries
+import time
+import ee
+import os
+
+#Initialize earth engine
+ee.Initialize()
+
+#Source necessary functions.
+execfile('PullFunctions.py')
+
+#Load in Pekel water occurance Layer if necessary. Occurence is just the 
+#percentage of water occurence over a given pixel from 1985-2015.
+#Set the percent occurance threshold and create a watermask from the result.
+#If mask != 'Pekel', reverts to dswe water mask pulling only 2 highest confidences 
+#(1/2). Maybe change this later. 
+mask = r.mask
+
+if mask == 'Pekel':
+  pekel = ee.Image('JRC/GSW1_0/GlobalSurfaceWater')
+  threshold = r.threshold
+  water = pekel.select('occurrence').gt(threshold)
+  water = water.updateMask(water)
+
+  
+#Identify collection for use in sourced functions.  Right now we're only
+#set up for surface relfectance, but we'll need to add TOA.
+collection = r.collection  
+  
+#Load in Landsat Collections, eventually add S2 to this as well.
+l8 = ee.ImageCollection('LANDSAT/LC08/C01/T1_SR')
+l7 = ee.ImageCollection('LANDSAT/LE07/C01/T1_SR')
+l5 = ee.ImageCollection('LANDSAT/LT05/C01/T1_SR')
+
+#Standardize band names between the various collections and aggregate 
+#them into one image collection
+
+bn8 = ['B2','B3', 'B4', 'B5', 'B6','B7', 'pixel_qa']
+bn57 = ['B1', 'B2', 'B3', 'B4', 'B5','B7', 'pixel_qa']
+bns = ['Blue', 'Green', 'Red', 'Nir', 'Swir1', 'Swir2', 'qa']
+  
+ls5 = l5.select(bn57, bns)
+ls7 = l7.select(bn57, bns)
+ls8 = l8.select(bn8, bns)
+
+ls = ee.ImageCollection(ls5.merge(ls7).merge(ls8))\
+.filter(ee.Filter.lt('CLOUD_COVER', r.cloudyScene))
+
+## Read in the shapefile, pull the ID column and send geometries up to EE.
+shpPy = r.shapesUp
+ids = shpPy[r.idCol]
+geos = shpPy['geometry']
+
+geometries = ee.FeatureCollection([ee.Feature(ee.Geometry.MultiPolygon(coords = [l.tolist() for l in geos[i][0]]), {r.idCol:ids[i]}) for i in range(0,len(ids))])
+
+#If download directory provided, check for work already pulled.  
+if r.dlDir != None:
+  dlDir = r.dlDir
+  filesDown = os.listdir(dlDir)
+  filesDown = [i.replace(".csv", "") for i in filesDown]
+  ids  = [i for i in ids if i not in filesDown]
+
+  # Finally send it all up and pull the data.                        
+for x in range(0, len(ids)):
+  #We're iterating over features individually.
+  feature = geometries.filter(ee.Filter.eq(r.idCol, ids[x])).first()
+  # Create empty shell to add attributes to for export
+  shell = ee.Feature(None)
+  #FilterBounds for the feature and filter to selected dates,
+  #Clip the image to the feature
+  #Potentially remove the clip image, it's slow if geometries are complicated.
+  lsover = (ls.filterBounds(feature.geometry())
+            .filterDate(str(r.dateStart),str(r.dateEnd))
+            .map(clipImage))
+    
+  # Pull reflectance values for allthe images overlapping the feature.
+  #Filter for cScore, which is basically a measure of non-land/non-water pixels
+  #over the feature.
+  data = lsover.map(featurePull).filter(ee.Filter.lt('cScore', r.cloudyFeature))
+  dataOut = ee.batch.Export.table.toDrive(collection = data, \
+                                            description = str(ids[x]),\
+                                            folder = r.driveFolder,\
+                                            fileFormat = 'csv')
+  #Check how many existing tasks are running and take a break if it's >15  
+  maximum_no_of_tasks(25, 60)
+  #Send next task.
+  dataOut.start()
+  print('done_' + str(ids[x]))
+  
+#Make sure all Earth engine tasks are completed prior to moving on.  
+maximum_no_of_tasks(1,300)
+print('done_all')
+
+exit
+```
+
