@@ -283,4 +283,3 @@ nanas.sf <- filesUp %>% left_join(NaNas) %>%
 mapview(nanas.sf, zcol = 'count')
 ```
 
-
