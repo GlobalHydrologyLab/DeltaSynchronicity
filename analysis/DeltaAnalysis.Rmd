@@ -16,8 +16,8 @@ library(gridExtra)
 library(maps)
 library(ggthemes)
 
-DeltasClean <- read_csv("data/out/deltas_clean.csv")
-DeltaLocations <- read_csv("data/DeltaLocations.csv")
+DeltasClean <- read_csv("../data/out/deltas_clean.csv")
+DeltaLocations <- read_csv("../data/DeltaLocations.csv")
 ```
 
 As a reminder, for each of the 47 deltas there are measurements of Land & Water areas at Upstream, Downstream and 'Middle' locations on the delta. We first lump all the observations together, and look to see which Deltas have many observations:
@@ -31,13 +31,13 @@ DeltaCounts
 
 Now, by each month.. where the colorbar represents the number of observations (n) for each month for a given delta:
 ```{r}
-DeltaMonthCounts <- count(DeltasClean, Delta, month)
+DeltaObsPerMonth <- count(DeltasClean, Delta, month)
 
-MonthHeat <- ggplot(DeltaMonthCounts, aes(y = Delta, x = month, fill=n)) + geom_tile() + 
+ggplot(DeltaObsPerMonth, aes(y = Delta, x = month, fill=n)) + geom_tile() + 
   scale_x_discrete(limits = c(1:12), breaks = c(1:12)) +
   expand_limits(x = c(1,12)) + 
   scale_fill_gradient( trans = 'log' )
-MonthHeat
+
 ```
 
 
@@ -47,21 +47,33 @@ In the above heat map, dark colors (and no color) represent data paucity (and da
 I'll remove/subset the deltas with sparse coverage (specifically, months with no coverage).... 
 ```{r}
 
-#find deltas missing a given month
+# need 10 data points per month for NDSSI and NDVI
+EnoughObsPerMonth <- DeltasClean %>%
+  count(Delta, month, surface) %>% 
+  group_by(surface) %>%
+  filter( n >= 10)
 
-DeltaMonthCounts <- count(DeltaMonthCounts, Delta)
+#find deltas missing a given month of observations
+DeltaMonthCounts <- EnoughObsPerMonth %>%
+  ungroup() %>%
+  count(Delta)
 
+# need 12 months of water and land obs, so 24 mo total
 EnoughMonths <- DeltaMonthCounts %>%
- filter( n == 12)
+ filter( n == 24)
 
-A <- pull(EnoughMonths, Delta)
+CompleteObsDeltas <- pull(EnoughMonths, Delta)
 
 #remove them
-DeltasClean <- DeltasClean %>%
-  filter(Delta %in% A)
+DeltasCleaner <- DeltasClean %>%
+  filter(Delta %in% CompleteObsDeltas)
 
 #add the real dates in month date format
-DeltasClean$date <- as.Date(paste(DeltasClean$year, DeltasClean$month, "01", sep="-"), "%Y-%m-%d")
+DeltasCleaner$date <- as.Date(paste(DeltasCleaner$year, DeltasCleaner$month, "01", sep="-"), "%Y-%m-%d")
+
+#remove intermediate data
+#rm(CompleteObsDeltas, EnoughMonths, DeltaMonthCounts,EnoughDeltaObsPerMonth)
+
 
 ```
 
@@ -78,7 +90,7 @@ From a quick look at the dat (not shown until much later in the doc):
 
 ```{r  include = TRUE}
 #take the mean NDVI and NDSSI for each month, for each delta
-DeltaMeans <- DeltasClean %>%
+DeltaMeans <- DeltasCleaner %>%
   group_by(Delta, month, surface) %>%
   summarize(MeanNDVI = mean(ndvi, na.rm = TRUE), MeanNDSSI = mean(ndssi, na.rm = TRUE))
 
@@ -129,6 +141,9 @@ DeltaMaxMin <- left_join(DeltaMaxNDVI, DeltaMaxNDSSI, by = 'Delta') %>%
   left_join(.,DeltaMinNDVI, by = 'Delta') %>% 
   left_join(.,DeltaMinNDSSI, by = 'Delta')
 
+#remove intermediate data
+rm(DeltaMaxNDVI, DeltaMaxNDSSI, DeltaMinNDSSI,DeltaMinNDVI)
+
 ```
 
 
@@ -146,23 +161,23 @@ DeltaMaxMin <- mutate(DeltaMaxMin,
                       rangeNDVI = (MaxMeanNDVI - MinMeanNDVI), 
                       rangeNDSSI = (MaxMeanNDSSI - MinMeanNDSSI))
 
-DeltaMaxMinDisplay <- 
-  DeltaMaxMin   %>%
-  select (c(Delta, MinOffset, MaxOffset, OffsetDiff, rangeNDVI, rangeNDSSI,MaxMeanNDSSI,MinMeanNDSSI,MaxMeanNDVI,MinMeanNDVI)) 
+# DeltaMaxMin <- 
+#   DeltaMaxMin   %>%
+#   select (c(Delta, MinOffset, MaxOffset, OffsetDiff, rangeNDVI, rangeNDSSI,MaxMeanNDSSI,MinMeanNDSSI,MaxMeanNDVI,MinMeanNDVI)) 
 
-DeltaMaxMinDisplay
+DeltaMaxMin
 
-ggplot(DeltaMaxMinDisplay, aes(y = Delta, x = MaxOffset)) + geom_point() + 
+ggplot(DeltaMaxMin, aes(y = Delta, x = MaxOffset)) + geom_point() + 
   scale_x_discrete(limits = c(1:6), breaks = c(1:6)) +
   expand_limits(x = c(0,6))  + 
   ggtitle("MaxOffset")
 
-ggplot(DeltaMaxMinDisplay, aes(y = Delta, x = MinOffset)) + geom_point() + 
+ggplot(DeltaMaxMin, aes(y = Delta, x = MinOffset)) + geom_point() + 
   scale_x_discrete(limits = c(1:6), breaks = c(1:6)) +
   expand_limits(x = c(0,6))  + 
   ggtitle("MinOffset")
 
-ggplot(DeltaMaxMinDisplay, aes(y = Delta, x = OffsetDiff)) + geom_point() + 
+ggplot(DeltaMaxMin, aes(y = Delta, x = OffsetDiff)) + geom_point() + 
   scale_x_discrete(limits = c(1:6), breaks = c(1:6)) +
   expand_limits(x = c(0,6))  + 
   ggtitle("Offset Difference")
@@ -172,11 +187,11 @@ ggplot(DeltaMaxMinDisplay, aes(y = Delta, x = OffsetDiff)) + geom_point() +
    And here are the phase shifts/offsets against other measured parameters for each delta. The range, max and mean of NDVI and NDSSI is calculated from the timeseries, so it is really the max, min, and range of the monthly means (i.e., the maximum of the means, the minimum of the means, and the range of the mean). Offset is measured in months.
 
 ```{r}
-slice1 <- ggplot(DeltaMaxMinDisplay, aes(y = rangeNDVI, x = MaxOffset)) + geom_point() 
+slice1 <- ggplot(DeltaMaxMin, aes(y = rangeNDVI, x = MaxOffset)) + geom_point() 
 # + scale_x_discrete(limits = c(1:6), breaks = c(1:6)) + expand_limits(x = c(1,6)) 
 
-slice2 <- ggplot(DeltaMaxMinDisplay, aes(y = rangeNDVI, x = rangeNDSSI)) + geom_point() 
-slice3 <- ggplot(DeltaMaxMinDisplay, aes(y = rangeNDSSI, x = MaxOffset)) + geom_point() 
+slice2 <- ggplot(DeltaMaxMin, aes(y = rangeNDVI, x = rangeNDSSI)) + geom_point() 
+slice3 <- ggplot(DeltaMaxMin, aes(y = rangeNDSSI, x = MaxOffset)) + geom_point() 
 
 slice4 <- ggplot(DeltaMaxMin, aes(y = MaxMeanNDVI, x = rangeNDVI)) + geom_point() 
 slice5 <- ggplot(DeltaMaxMin, aes(y = MaxMeanNDVI, x = rangeNDSSI)) + geom_point() 
@@ -189,6 +204,10 @@ slice10 <- ggplot(DeltaMaxMin, aes(y = MaxMeanNDSSI, x = rangeNDVI)) + geom_poin
 
 grid.arrange(slice1, slice2, slice3, slice4, slice5, slice6, ncol=3)
 grid.arrange(slice7, slice8, slice9, slice10, ncol=2)
+
+#remove those panels
+rm(slice1, slice2, slice3, slice4, slice5, slice6,slice7, slice8, slice9, slice10)
+
 ```
 
 
@@ -196,20 +215,23 @@ Join Latitude and longitude data
 
 ```{r}
 
-DeltaDispLocation <- left_join(DeltaMaxMinDisplay, DeltaLocations, by = c("Delta" = "Deltas"))
+DeltaDatawLocations <- left_join(DeltaMaxMin, DeltaLocations, by = c("Delta" = "Deltas"))
+
 
 ```
 
 plot params vs lat
 ```{r}
-loc1 <- ggplot(DeltaDispLocation, aes(y = abs(Lat), x = MaxOffset)) + geom_point() 
-loc2 <- ggplot(DeltaDispLocation, aes(y = abs(Lat), x = rangeNDSSI)) + geom_point() 
-loc3 <- ggplot(DeltaDispLocation, aes(y = abs(Lat), x = rangeNDVI)) + geom_point() 
-loc4 <- ggplot(DeltaDispLocation, aes(y = abs(Lat), x = MaxMeanNDVI)) + geom_point() 
-loc5 <- ggplot(DeltaDispLocation, aes(y = abs(Lat), x = MaxMeanNDSSI)) + geom_point() 
+loc1 <- ggplot(DeltaDatawLocations, aes(y = abs(Lat), x = MaxOffset)) + geom_point() 
+loc2 <- ggplot(DeltaDatawLocations, aes(y = abs(Lat), x = rangeNDSSI)) + geom_point() 
+loc3 <- ggplot(DeltaDatawLocations, aes(y = abs(Lat), x = rangeNDVI)) + geom_point() 
+loc4 <- ggplot(DeltaDatawLocations, aes(y = abs(Lat), x = MaxMeanNDVI)) + geom_point() 
+loc5 <- ggplot(DeltaDatawLocations, aes(y = abs(Lat), x = MaxMeanNDSSI)) + geom_point() 
 
 grid.arrange(loc1, loc2, loc3, loc4, loc5, ncol=2)
 
+#remove those panels
+rm(loc1, loc2, loc3, loc4, loc5)
 ```
 
 
@@ -222,7 +244,7 @@ world <- ggplot() +
 
 DeltaOffsetMap <- world +
   geom_point(aes(x = Lon, y = Lat, color = MaxOffset),
-             data = DeltaDispLocation, 
+             data = DeltaDatawLocations, 
              size = 5) + scale_color_gradient( high = "red", low  = "yellow") +
   ggtitle("Offset Between NDVI peak on Land and NDSSI peak in water")
 
@@ -238,14 +260,14 @@ world <- ggplot() +
 
 DeltaNDVIrangeMap <- world +
   geom_point(aes(x = Lon, y = Lat, color = rangeNDVI),
-             data = DeltaDispLocation,
+             data = DeltaDatawLocations,
              size = 5) + scale_color_gradient( high = "red", low  = "yellow") + 
   ggtitle("NDVI range")
 
 
 DeltaNDSSIrangeMap  <- world +
   geom_point(aes(x = Lon, y = Lat, color = rangeNDSSI),
-             data = DeltaDispLocation, 
+             data = DeltaDatawLocations, 
              size = 5) + scale_color_gradient( high = "red", low = "yellow") + ggtitle("NDSSI range") 
 
 DeltaNDVIrangeMap 
@@ -259,13 +281,13 @@ To quantify the water, we use NDSSI. to quantify land, we use NDVI.here is the t
 ```{r}
 DeltaPlotter <- function(DeltaName) {
   #Counts each month
-  numVeg <- DeltasClean %>%
+  numVeg <- DeltasCleaner %>%
     select(Delta, surface, month, ndvi) %>%
     filter(Delta == DeltaName & surface == "Land" & !is.na(ndvi)) %>%
     group_by(month) %>%
     summarize(n = n())
   
-  numSed <- DeltasClean %>%
+  numSed <- DeltasCleaner %>%
     select(Delta, surface, month, ndssi) %>%
     filter(Delta == DeltaName &
              surface == "Water" & !is.na(ndssi)) %>%
@@ -276,7 +298,7 @@ DeltaPlotter <- function(DeltaName) {
   
   #LAND
   Veg <-
-    ggplot(data = filter(DeltasClean, Delta == DeltaName &
+    ggplot(data = filter(DeltasCleaner, Delta == DeltaName &
                            surface == "Land")) +
     geom_boxplot(aes(x = month, y = ndvi, group = month)) +
     scale_x_discrete(limits = c(1:12), breaks = c(1:12)) +
@@ -285,16 +307,16 @@ DeltaPlotter <- function(DeltaName) {
     geom_text(data = numVeg, aes(y = 1.05, x = month, label = n)) +
     geom_boxplot(
       data = filter(
-        DeltasClean,
+        DeltasCleaner,
         Delta == DeltaName &
-          surface == "Land" & month == DeltaMaxNDVI$MaxMeanNDVImonth[DeltaMaxNDVI$Delta ==DeltaName] 
+          surface == "Land" & month == DeltaMaxMin$MaxMeanNDVImonth[DeltaMaxMin$Delta == DeltaName] 
       ),
       aes(x = month, y = ndvi, group = month),
       fill = "green"
     ) +
     geom_boxplot(
       data = filter(
-        DeltasClean,
+        DeltasCleaner,
         Delta == DeltaName &
           surface == "Land" & month == DeltaMaxMin$MinMeanNDVImonth[DeltaMaxMin$Delta ==DeltaName]
       ),
@@ -304,7 +326,7 @@ DeltaPlotter <- function(DeltaName) {
   
   
   Sed <-
-    ggplot(data = filter(DeltasClean, Delta == DeltaName &
+    ggplot(data = filter(DeltasCleaner, Delta == DeltaName &
                            surface == "Water")) +
     geom_boxplot(aes(x = month, y = ndssi, group = month)) +
     scale_x_discrete(limits = c(1:12), breaks = c(1:12)) +
@@ -312,7 +334,7 @@ DeltaPlotter <- function(DeltaName) {
     geom_text(data = numSed, aes(y = 1.05, x = month, label = n)) +
     geom_boxplot(
       data = filter(
-        DeltasClean,
+        DeltasCleaner,
         Delta == DeltaName &
           surface == "Water" & month == DeltaMaxMin$MaxMeanNDSSImonth[DeltaMaxMin$Delta == DeltaName]
       ),
@@ -321,7 +343,7 @@ DeltaPlotter <- function(DeltaName) {
     ) +
     geom_boxplot(
       data = filter(
-        DeltasClean,
+        DeltasCleaner,
         Delta == DeltaName &
           surface == "Water" & month == DeltaMaxMin$MinMeanNDSSImonth[DeltaMaxMin$Delta == DeltaName]
       ),
