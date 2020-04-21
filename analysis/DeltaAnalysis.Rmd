@@ -72,9 +72,9 @@ DeltasCleaner <- DeltasClean %>%
 DeltasCleaner$date <- as.Date(paste(DeltasCleaner$year, DeltasCleaner$month, "01", sep="-"), "%Y-%m-%d")
 
 #remove intermediate data
-#rm(CompleteObsDeltas, EnoughMonths, DeltaMonthCounts,EnoughDeltaObsPerMonth)
+rm(CompleteObsDeltas, EnoughMonths, DeltaMonthCounts,EnoughDeltaObsPerMonth)
 
-
+#EnoughMonths
 ```
 
 and extract some metrics; specifically I will make a timeseries of NDVI and NDSSI for each delta using the mean value for each month.
@@ -317,7 +317,7 @@ DeltaPlotter <- function(DeltaName) {
     geom_boxplot(
       data = filter(
         DeltasCleaner,
-        Delta == DeltaName &
+        Delta == DeltaName & 
           surface == "Land" & month == DeltaMaxMin$MinMeanNDVImonth[DeltaMaxMin$Delta ==DeltaName]
       ),
       aes(x = month, y = ndvi, group = month),
