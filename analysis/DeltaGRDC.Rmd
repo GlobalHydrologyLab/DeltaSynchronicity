@@ -1,0 +1,17 @@
+---
+title: "Deltas GRDC data"
+output:
+  html_notebook: default
+  html_document:
+    df_print: paged
+  pdf_document: default
+  word_document: default
+---
+Let's import at all of the data that Simon and Matt pulled:
+
+```{r}
+library(tidyverse)
+library(hddtools)
+
+DeltasGRDC <- read_csv("../data/GRDCstations.csv")
+```
