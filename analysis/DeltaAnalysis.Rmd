@@ -51,7 +51,7 @@ I'll remove/subset the deltas with sparse coverage (specifically, months with no
 EnoughObsPerMonth <- DeltasClean %>%
   count(Delta, month, surface) %>% 
   group_by(surface) %>%
-  filter( n >= 10)
+  filter( n >= 5)
 
 #find deltas missing a given month of observations
 DeltaMonthCounts <- EnoughObsPerMonth %>%
@@ -72,7 +72,7 @@ DeltasCleaner <- DeltasClean %>%
 DeltasCleaner$date <- as.Date(paste(DeltasCleaner$year, DeltasCleaner$month, "01", sep="-"), "%Y-%m-%d")
 
 #remove intermediate data
-rm(CompleteObsDeltas, EnoughMonths, DeltaMonthCounts,EnoughDeltaObsPerMonth)
+rm(CompleteObsDeltas, EnoughMonths, DeltaMonthCounts)
 
 #EnoughMonths
 ```
@@ -217,21 +217,42 @@ Join Latitude and longitude data
 
 DeltaDatawLocations <- left_join(DeltaMaxMin, DeltaLocations, by = c("Delta" = "Deltas"))
 
-
+DeltaDatawLocations <- DeltaDatawLocations %>%
+  mutate(Absolute_Latitude= abs(Lat))
 ```
 
 plot params vs lat
 ```{r}
-loc1 <- ggplot(DeltaDatawLocations, aes(y = abs(Lat), x = MaxOffset)) + geom_point() 
-loc2 <- ggplot(DeltaDatawLocations, aes(y = abs(Lat), x = rangeNDSSI)) + geom_point() 
-loc3 <- ggplot(DeltaDatawLocations, aes(y = abs(Lat), x = rangeNDVI)) + geom_point() 
-loc4 <- ggplot(DeltaDatawLocations, aes(y = abs(Lat), x = MaxMeanNDVI)) + geom_point() 
-loc5 <- ggplot(DeltaDatawLocations, aes(y = abs(Lat), x = MaxMeanNDSSI)) + geom_point() 
+loc1 <- ggplot(DeltaDatawLocations, aes(y = Absolute_Latitude, x = MaxOffset)) + geom_point() 
+loc2 <- ggplot(DeltaDatawLocations, aes(y = Absolute_Latitude, x = rangeNDSSI)) + geom_point() 
+loc3 <- ggplot(DeltaDatawLocations, aes(y = Absolute_Latitude, x = rangeNDVI)) + geom_point() 
+loc4 <- ggplot(DeltaDatawLocations, aes(y = Absolute_Latitude, x = MaxMeanNDVI)) + geom_point() 
+loc5 <- ggplot(DeltaDatawLocations, aes(y = Absolute_Latitude, x = MaxMeanNDSSI)) + geom_point() 
 
 grid.arrange(loc1, loc2, loc3, loc4, loc5, ncol=2)
 
+loc1
+ggsave("loc1.pdf", width = 4, height = 4)
+loc2
+ggsave("loc2.pdf", width = 4, height = 4)
+loc3
+ggsave("loc3.pdf", width = 4, height = 4)
+
 #remove those panels
 rm(loc1, loc2, loc3, loc4, loc5)
+```
+
+```{r}
+#find the linear model 
+
+DeltaOffset_lm1 <- lm( Absolute_Latitude ~ MaxOffset, data = DeltaDatawLocations) 
+
+#coef(DeltaOffset_lm1)
+
+ggplot(DeltaDatawLocations, aes(x = Absolute_Latitude, y = MaxOffset)) + 
+  geom_point() +
+  geom_smooth(mapping = aes(x = Absolute_Latitude, y = MaxOffset, ), method=lm ) 
+
 ```
 
 
@@ -249,6 +270,7 @@ DeltaOffsetMap <- world +
   ggtitle("Offset Between NDVI peak on Land and NDSSI peak in water")
 
 DeltaOffsetMap
+ggsave("DeltaOffsetMap.pdf", width = 6, height = 4)
 
 ```
 
@@ -271,7 +293,9 @@ DeltaNDSSIrangeMap  <- world +
              size = 5) + scale_color_gradient( high = "red", low = "yellow") + ggtitle("NDSSI range") 
 
 DeltaNDVIrangeMap 
+ggsave("DeltaNDVIrangeMap.pdf", width = 6, height = 4)
 DeltaNDSSIrangeMap
+ggsave("DeltaNDSSIrangeMap.pdf", width = 6, height = 4)
 
 ```
 
@@ -356,14 +380,15 @@ DeltaPlotter <- function(DeltaName) {
 ```
 
 
+Here is an 'Offset' example from the Parana:
 ```{r}
 DeltaPlotter("Parana")
 ```
 
 
-and now the Nile:
+and now an in-phase example from
 ```{r}
-DeltaPlotter("Nile")
+DeltaPlotter("Magdalena")
 ```
 
 
@@ -373,10 +398,19 @@ DeltaPlotter("Ebro")
 ```
 
 
-and the Han
+and the Tana
 ```{r}
-DeltaPlotter("Han")
+DeltaPlotter("Tana")
 ```
+
+and the Tana
+```{r}
+DeltaPlotter("Godavari")
+DeltaPlotter("Krishna")
+```
+
+
+
 
 
 Now for some work with GRDC data:
@@ -391,21 +425,26 @@ DeltasGRDCwMean <- DeltasGRDC %>%
                     May,June,July,August,
                     September,October,November,December)))
 
+DeltasGRDCwMean <- DeltasGRDCwMean %>% 
+  rowwise() %>% 
+  mutate(Range_Discharge = max(c(January,February,March,April,
+              May,June,July,August,
+              September,October,November,December)) - 
+           min(c(January,February,March,April,
+              May,June,July,August,
+              September,October,November,December))
+           )
+        
+
 #join to location data:
 DeltawLocGRDC <- left_join(DeltaDatawLocations, DeltasGRDCwMean, by = c("Delta" = "Deltas"))
 
 
 #plot mean of monthly means against NDSSI
-ggplot(DeltawLocGRDC, aes(y = MMD, x = rangeNDSSI)) + geom_point() 
-ggplot(DeltawLocGRDC, aes(y = MMD, x = MaxMeanNDSSI)) + geom_point() 
-```
+ggplot(DeltawLocGRDC, aes(y = Range_Discharge, x = rangeNDSSI)) + geom_point() + scale_y_continuous(trans='log10')
 
-```{r}
-#plot mean of monthly means against NDSSI
-GRDC1 <- ggplot(DeltawLocGRDC, aes(y = MMD, x = rangeNDSSI)) + geom_point() 
-GRDC2 <- ggplot(DeltawLocGRDC, aes(y = MMD, x = MaxMeanNDSSI)) + geom_point() 
+ggsave("GRDCNDSSI.pdf", width = 6, height = 4)
 
-GRDC1
-GRDC2
+ggplot(DeltawLocGRDC, aes(y = Range_Discharge, x = MaxMeanNDSSI)) + geom_point() + scale_y_continuous(trans='log10')
 ```
 
