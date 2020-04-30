@@ -372,21 +372,40 @@ and the Ebro:
 DeltaPlotter("Ebro")
 ```
 
-For the Rhine
-```{r}
-DeltaPlotter("Rhine")
-```
-For the Orinoco
-```{r}
-DeltaPlotter("Orinoco")
-```
 
-Han and Yellow
+and the Han
 ```{r}
 DeltaPlotter("Han")
-DeltaPlotter("Yellow")
 ```
 
 
+Now for some work with GRDC data:
+```{r}
+#import the data (monthly means for 21 stations)
+DeltasGRDC  <- read_csv("../data/GRDCstations.csv")
 
+#calculate the mean of the monthly means
+DeltasGRDCwMean <- DeltasGRDC %>% 
+    rowwise() %>% 
+    mutate(MMD=mean(c(January,February,March,April,
+                    May,June,July,August,
+                    September,October,November,December)))
+
+#join to location data:
+DeltawLocGRDC <- left_join(DeltaDatawLocations, DeltasGRDCwMean, by = c("Delta" = "Deltas"))
+
+
+#plot mean of monthly means against NDSSI
+ggplot(DeltawLocGRDC, aes(y = MMD, x = rangeNDSSI)) + geom_point() 
+ggplot(DeltawLocGRDC, aes(y = MMD, x = MaxMeanNDSSI)) + geom_point() 
+```
+
+```{r}
+#plot mean of monthly means against NDSSI
+GRDC1 <- ggplot(DeltawLocGRDC, aes(y = MMD, x = rangeNDSSI)) + geom_point() 
+GRDC2 <- ggplot(DeltawLocGRDC, aes(y = MMD, x = MaxMeanNDSSI)) + geom_point() 
+
+GRDC1
+GRDC2
+```
 
