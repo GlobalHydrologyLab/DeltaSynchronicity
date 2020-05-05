@@ -249,11 +249,17 @@ DeltaOffset_lm <- lm( Absolute_Latitude ~ MaxOffset, data = DeltaDatawLocations)
 
 summary(DeltaOffset_lm)
 
-ggplot(DeltaDatawLocations, aes(x = Absolute_Latitude, y = MaxOffset)) + 
-  geom_point() +
+ggplot(DeltaDatawLocations, aes(x = Absolute_Latitude, y = MaxOffset, color = rangeNDSSI)) + geom_point() +
+  scale_color_gradient(low = "yellow", high = "red", na.value = NA) + 
   geom_smooth(mapping = aes(x = Absolute_Latitude, y = MaxOffset, ), method=lm ) 
 
+ggsave("NDSSIoffset.pdf", width = 6, height = 4)
 
+ggplot(DeltaDatawLocations, aes(x = Absolute_Latitude, y = MaxOffset, color = rangeNDVI)) + geom_point() +
+  scale_color_gradient(low = "yellow", high = "red", na.value = NA) + 
+  geom_smooth(mapping = aes(x = Absolute_Latitude, y = MaxOffset, ), method=lm ) 
+
+ggsave("NDVIoffset.pdf", width = 6, height = 4)
 
 ```
 
@@ -449,4 +455,13 @@ ggsave("GRDCNDSSI.pdf", width = 6, height = 4)
 
 ggplot(DeltawLocGRDC, aes(y = Range_Discharge, x = MaxMeanNDSSI)) + geom_point() + scale_y_continuous(trans='log10')
 ```
+
+
+
+```{r}
+
+
+
+```
+
 
