@@ -402,7 +402,7 @@ DeltaPlotter("Magdalena")
 
 and the Ebro:
 ```{r}
-DeltaPlotter("Ebro")
+DeltaPlotter("Krishna")
 ```
 
 
@@ -461,7 +461,48 @@ ggplot(DeltawLocGRDC, aes(y = Range_Discharge, x = MaxMeanNDSSI)) + geom_point()
 ```{r}
 
 
+#rename the months by numbers and tidy the GRDC data
+DeltasDischarge <- DeltasGRDC %>%
+  rename(Delta = Deltas,"1" = January, "2"= February, "3"= March, "4"= April,
+         "5"=May, "6"=June, "7"=July, "8"= August, "9" = September, "10"=October, 
+         "11"=November, "12"=December) %>%
+  select(Delta, "1" , "2" , "3", "4","5", "6", "7", "8", "9", "10", "11", "12") %>%
+  pivot_longer(-Delta, names_to = "month", values_to = "discharge")
 
+#find max GRDC month for each delta
+DeltaMaxDischarge <- 
+  DeltasDischarge %>% 
+  group_by(Delta) %>% 
+  slice(which.max(discharge)) %>% 
+  rename(MaxDischargeMonth = month, MaxDischarge = discharge)
+
+#join with other delta data
+DeltaMaxMinDischarge <- left_join(DeltaMaxMin, DeltaMaxDischarge, by = 'Delta')
+
+#calculate offset
+
+#Compare offset with NDSSI (deltamaxmin$maxmeanNDSSImonth)
+ggplot(DeltaMaxMinDischarge, aes(y = Delta, x = DissOff)) + geom_point() + 
+  scale_x_discrete(limits = c(1:6), breaks = c(1:6)) +
+  expand_limits(x = c(0,6))  + 
+  ggtitle("DisOffset")
+
+# plot offset on graph by lat
+ggplot(DeltaDatawLocations, aes(x = Absolute_Latitude, y = MaxOffset, color = rangeNDSSI)) + geom_point() +
+  scale_color_gradient(low = "yellow", high = "red", na.value = NA) + 
+  geom_smooth(mapping = aes(x = Absolute_Latitude, y = MaxOffset, ), method=lm ) 
+
+ggsave("DisOffset.pdf", width = 6, height = 4)
+
+#plot offset on map
+DeltaDisOffsetMap <- world +
+  geom_point(aes(x = Lon, y = Lat, color = DisOff),
+             data = DeltaDatawLocations, 
+             size = 5) + scale_color_gradient( high = "red", low  = "yellow") +
+  ggtitle("Offset Between GRDC discharge peak and NDSSI peak in water")
+
+DeltaOffsetMap
+#ggsave("DeltaOffsetMap.pdf", width = 6, height = 4)
 ```
 
 
