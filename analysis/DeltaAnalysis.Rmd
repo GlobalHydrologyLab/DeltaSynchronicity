@@ -474,12 +474,21 @@ DeltaMaxDischarge <-
   DeltasDischarge %>% 
   group_by(Delta) %>% 
   slice(which.max(discharge)) %>% 
-  rename(MaxDischargeMonth = month, MaxDischarge = discharge)
+  rename(MaxDischargeMonth = month, MaxDischarge = discharge) 
+
+
+DeltaMaxDischarge$MaxDischargeMonth = as.numeric(DeltaMaxDischarge$MaxDischargeMonth)
+
 
 #join with other delta data
 DeltaMaxMinDischarge <- left_join(DeltaMaxMin, DeltaMaxDischarge, by = 'Delta')
 
 #calculate offset
+DeltaMaxMinDischarge <- DeltaMaxMinDischarge %>%
+  mutate( DissOff = if_else(abs(MaxDischargeMonth - MaxMeanNDSSImonth) > 6,
+                            12 - abs(MaxDischargeMonth - MaxMeanNDSSImonth),
+                            abs(MaxDischargeMonth - MaxMeanNDSSImonth))
+          )
 
 #Compare offset with NDSSI (deltamaxmin$maxmeanNDSSImonth)
 ggplot(DeltaMaxMinDischarge, aes(y = Delta, x = DissOff)) + geom_point() + 
@@ -487,22 +496,37 @@ ggplot(DeltaMaxMinDischarge, aes(y = Delta, x = DissOff)) + geom_point() +
   expand_limits(x = c(0,6))  + 
   ggtitle("DisOffset")
 
+
+#just to check
+
+check <- DeltaMaxMinDischarge %>%
+  select(Delta,MaxMeanNDVImonth, MaxMeanNDSSImonth, MaxDischargeMonth, DissOff)
+
+
+#join lat data
+DeltaDatawLocations <- left_join(DeltaMaxMinDischarge, DeltaLocations, by = c("Delta" = "Deltas"))
+
+DeltaDatawLocations <- DeltaDatawLocations %>%
+  mutate(Absolute_Latitude= abs(Lat))
+
 # plot offset on graph by lat
-ggplot(DeltaDatawLocations, aes(x = Absolute_Latitude, y = MaxOffset, color = rangeNDSSI)) + geom_point() +
-  scale_color_gradient(low = "yellow", high = "red", na.value = NA) + 
-  geom_smooth(mapping = aes(x = Absolute_Latitude, y = MaxOffset, ), method=lm ) 
+ggplot(DeltaDatawLocations, aes(x = Absolute_Latitude, y = DissOff)) + geom_point() +
+  scale_color_gradient(low = "yellow", high = "red", na.value = NA) 
+  #+ geom_smooth(mapping = aes(x = Absolute_Latitude, y = DissOff, ), method=lm ) 
 
 ggsave("DisOffset.pdf", width = 6, height = 4)
 
 #plot offset on map
 DeltaDisOffsetMap <- world +
-  geom_point(aes(x = Lon, y = Lat, color = DisOff),
+  geom_point(aes(x = Lon, y = Lat, color = DissOff),
              data = DeltaDatawLocations, 
              size = 5) + scale_color_gradient( high = "red", low  = "yellow") +
   ggtitle("Offset Between GRDC discharge peak and NDSSI peak in water")
 
-DeltaOffsetMap
+DeltaDisOffsetMap
 #ggsave("DeltaOffsetMap.pdf", width = 6, height = 4)
 ```
+
+
 
 
