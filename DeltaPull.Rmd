@@ -215,7 +215,7 @@ dClean <- deltas %>%
          evi = ifelse(abs(evi) > 10000, NA, evi),
          savi = ((nir-red)/(nir+red+0.5))*1.5,
          gr = green/red,
-         ndssi = (blue-nir)/(blue + nir)) %>%%>%
+         ndssi = (blue-nir)/(blue + nir)) %>%
   group_by(Delta, location, surface, year, month) %>%
   summarize(ndvi = mean(ndvi, na.rm = T),
             red = mean(red, na.rm = T),
