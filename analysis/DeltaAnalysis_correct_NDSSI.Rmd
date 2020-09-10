@@ -448,4 +448,109 @@ ggplot(DeltawLocGRDC, aes(y = Range_Discharge, x = rangeNDSSI)) + geom_point() +
 
 ggplot(DeltawLocGRDC, aes(y = Range_Discharge, x = MaxMeanNDSSI)) + geom_point() + scale_y_continuous(trans='log10')
 ```
+```{r}
+#import the data (monthly means for 21 stations)
+DeltasGRDC  <- read_csv("../data/GRDCstations.csv")
+```
+
+
+```{r}
+#calculate the mean of the monthly means
+DeltasGRDCwMean <- DeltasGRDC %>% 
+    rowwise() %>% 
+    mutate(MMD=mean(c(January,February,March,April,
+                    May,June,July,August,
+                    September,October,November,December)))
+
+DeltasGRDCwMean <- DeltasGRDCwMean %>% 
+  rowwise() %>% 
+  mutate(Range_Discharge = max(c(January,February,March,April,
+              May,June,July,August,
+              September,October,November,December)) - 
+           min(c(January,February,March,April,
+              May,June,July,August,
+              September,October,November,December))
+           )
+        
+
+#join to location data:
+DeltawLocGRDC <- left_join(DeltaDatawLocations, DeltasGRDCwMean, by = c("Delta" = "Deltas"))
+
+
+#plot mean of monthly means against NDSSI
+ggplot(DeltawLocGRDC, aes(y = Range_Discharge, x = rangeNDSSI)) + geom_point() + scale_y_continuous(trans='log10')
+
+#ggsave("GRDCNDSSI.pdf", width = 6, height = 4)
+```
+
+```{r}
+ggplot(DeltawLocGRDC, aes(y = Range_Discharge, x = MaxMeanNDSSI)) + geom_point() + scale_y_continuous(trans='log10')
+```
+
+```{r}
+#rename the months by numbers and tidy the GRDC data
+DeltasDischarge <- DeltasGRDC %>%
+  rename(Delta = Deltas,"1" = January, "2"= February, "3"= March, "4"= April,
+         "5"=May, "6"=June, "7"=July, "8"= August, "9" = September, "10"=October, 
+         "11"=November, "12"=December) %>%
+  select(Delta, "1" , "2" , "3", "4","5", "6", "7", "8", "9", "10", "11", "12") %>%
+  pivot_longer(-Delta, names_to = "month", values_to = "discharge")
+
+#find max GRDC month for each delta
+DeltaMaxDischarge <- 
+  DeltasDischarge %>% 
+  group_by(Delta) %>% 
+  slice(which.max(discharge)) %>% 
+  rename(MaxDischargeMonth = month, MaxDischarge = discharge) 
+
+
+DeltaMaxDischarge$MaxDischargeMonth = as.numeric(DeltaMaxDischarge$MaxDischargeMonth)
+
+
+#join with other delta data
+DeltaMaxMinDischarge <- left_join(DeltaMaxMin, DeltaMaxDischarge, by = 'Delta')
+
+#calculate offset
+DeltaMaxMinDischarge <- DeltaMaxMinDischarge %>%
+  mutate( DissOff = if_else(abs(MaxDischargeMonth - MaxMeanNDSSImonth) > 6,
+                            12 - abs(MaxDischargeMonth - MaxMeanNDSSImonth),
+                            abs(MaxDischargeMonth - MaxMeanNDSSImonth))
+          )
+
+#Compare offset with NDSSI (deltamaxmin$maxmeanNDSSImonth)
+ggplot(DeltaMaxMinDischarge, aes(y = Delta, x = DissOff)) + geom_point() + 
+  scale_x_discrete(limits = c(1:6), breaks = c(1:6)) +
+  expand_limits(x = c(0,6))  + 
+  ggtitle("DisOffset")
+```
+
+```{r}
+#join lat data
+DeltaDatawLocations <- left_join(DeltaMaxMinDischarge, DeltaLocations, by = c("Delta" = "Deltas"))
+
+DeltaDatawLocations <- DeltaDatawLocations %>%
+  mutate(Absolute_Latitude= abs(Lat))
+
+# plot offset on graph by lat
+ggplot(DeltaDatawLocations, aes(x = Absolute_Latitude, y = DissOff)) + geom_point() +
+  scale_color_gradient(low = "yellow", high = "red", na.value = NA) 
+  #+ geom_smooth(mapping = aes(x = Absolute_Latitude, y = DissOff, ), method=lm ) 
+
+#ggsave("DisOffset.pdf", width = 6, height = 4)
+```
+
+```{r}
+#plot offset on map
+DeltaDisOffsetMap <- world +
+  geom_point(aes(x = Lon, y = Lat, color = DissOff),
+             data = DeltaDatawLocations, 
+             size = 5) + scale_color_gradient( high = "red", low  = "yellow") +
+  ggtitle("Offset Between GRDC discharge peak and NDSSI peak in water")
+
+DeltaDisOffsetMap
+#ggsave("DeltaOffsetMap.pdf", width = 6, height = 4)
+
+```
+
+
 
