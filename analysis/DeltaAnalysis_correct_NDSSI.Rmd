@@ -121,7 +121,6 @@ DeltaMaxNDSSI <-
   slice(which.max(MeanNDSSI)) %>% 
   rename(MaxMeanNDSSImonth = month, MaxMeanNDSSI = MeanNDSSI)
 
-
 DeltaMinNDVI <- 
   DeltaMeans %>% 
   filter(surface == 'Land')  %>% 
@@ -162,7 +161,13 @@ DeltaMaxMin <- mutate(DeltaMaxMin,
                                           abs(MaxMeanNDVImonth - MaxMeanNDSSImonth)),
                       OffsetDiff = abs(MaxOffset - MinOffset),
                       rangeNDVI = (MaxMeanNDVI - MinMeanNDVI), 
-                      rangeNDSSI = (MaxMeanNDSSI - MinMeanNDSSI))
+                      rangeNDSSI = (MaxMeanNDSSI - MinMeanNDSSI),
+                      halfPeriodNDVI = if_else(abs(MaxMeanNDVImonth - MinMeanNDVImonth) > 6, 
+                                          12 - abs(MaxMeanNDVImonth - MinMeanNDVImonth),
+                                          abs(MaxMeanNDVImonth - MinMeanNDVImonth)),
+                      halfPeriodNDSSI = if_else(abs(MaxMeanNDSSImonth - MinMeanNDSSImonth) > 6, 
+                                          12 - abs(MaxMeanNDSSImonth - MinMeanNDSSImonth),
+                                          abs(MaxMeanNDSSImonth - MinMeanNDSSImonth)), )
 
 # DeltaMaxMin <- 
 #   DeltaMaxMin   %>%
@@ -185,6 +190,93 @@ ggplot(DeltaMaxMin, aes(y = Delta, x = OffsetDiff)) + geom_point() +
   expand_limits(x = c(0,6))  + 
   ggtitle("Offset Difference")
 
+```
+
+```{r}
+ggplot(DeltaMaxMin, aes(x = MaxMeanNDVImonth)) + 
+  geom_dotplot(binwidth = 1,dotsize = 0.5) + 
+  scale_y_continuous(NULL, breaks = NULL) + 
+  scale_x_discrete(limits = c(1:12), breaks = c(1:12)) + 
+  labs(x = "Month") +
+  ggtitle("Month of maximum mean NDVI")
+
+ggplot(DeltaMaxMin, aes(x = MaxMeanNDSSImonth)) + 
+  geom_dotplot(binwidth = 1,dotsize = 0.5) + 
+  scale_y_continuous(NULL, breaks = NULL) + 
+  scale_x_discrete(limits = c(1:12), breaks = c(1:12)) + 
+  labs(x = "Month") +
+  ggtitle("Month of maximum mean NDSSI")
+
+ggplot(DeltaMaxMin, aes(x = MaxOffset)) + 
+  geom_dotplot(binwidth = 1,dotsize = 0.25) + 
+  scale_y_continuous(NULL, breaks = NULL) + 
+  scale_x_discrete(limits = c(0:6), breaks = c(0:6)) + 
+  labs(x = "Months") +
+  ggtitle("Months Offset between NDVI and NDSSI")
+
+ggplot(DeltaMaxMin, aes(x = halfPeriodNDVI)) + 
+  geom_dotplot(binwidth = 1,dotsize = 0.25) + 
+  scale_y_continuous(NULL, breaks = NULL) + 
+  scale_x_discrete(limits = c(0:6), breaks = c(0:6)) + 
+  labs(x = "Months") +
+  ggtitle("half period NDVI ")
+
+ggplot(DeltaMaxMin, aes(x = halfPeriodNDSSI)) + 
+  geom_dotplot(binwidth = 1,dotsize = 0.25) + 
+  scale_y_continuous(NULL, breaks = NULL) + 
+  scale_x_discrete(limits = c(0:6), breaks = c(0:6)) + 
+  labs(x = "Months") +
+  ggtitle("half period NDSSI")
+
+```
+
+```{r}
+#extract NDVI value for each delta a the month of max NDSSI value
+
+DeltaNDVIatMaxNDSSI <- DeltaMaxMin %>%
+  select(Delta,MaxMeanNDSSImonth)
+
+DeltaMeansToJoin <- DeltaMeans %>%
+  filter(surface == 'Land')
+
+DeltaNDVIatMaxNDSSI <- left_join(DeltaNDVIatMaxNDSSI, DeltaMeansToJoin, 
+                                 by = c('Delta', 'MaxMeanNDSSImonth' ='month'))
+ 
+DeltaNDVIatMaxNDSSI <- DeltaNDVIatMaxNDSSI %>%
+  select (-c(surface, MeanNDSSI))
+
+DeltaNDVIatMaxNDSSI
+
+ggplot(DeltaNDVIatMaxNDSSI, aes(x = MeanNDVI)) + 
+  geom_dotplot(binwidth = 0.1, dotsize = 0.25) + 
+  scale_y_continuous(NULL, breaks = NULL)  + 
+  xlim(0,1) +
+  labs(x = "NDVI") +
+  ggtitle("NDVI at month of maximum mean NDSSI")
+```
+```{r}
+#extract NDVI value for each delta a the month of min NDSSI value
+
+DeltaNDVIatMinNDSSI <- DeltaMaxMin %>%
+  select(Delta,MinMeanNDSSImonth)
+
+DeltaMeansToJoin <- DeltaMeans %>%
+  filter(surface == 'Land')
+
+DeltaNDVIatMinNDSSI <- left_join(DeltaNDVIatMinNDSSI, DeltaMeansToJoin, 
+                                 by = c('Delta', 'MinMeanNDSSImonth' ='month'))
+ 
+DeltaNDVIatMinNDSSI <- DeltaNDVIatMinNDSSI %>%
+  select (-c(surface, MeanNDSSI))
+
+DeltaNDVIatMaxNDSSI
+
+ggplot(DeltaNDVIatMinNDSSI, aes(x = MeanNDVI)) + 
+  geom_dotplot(binwidth = 0.1, dotsize = 0.25) + 
+  scale_y_continuous(NULL, breaks = NULL)  + 
+  xlim(0,1) +
+  labs(x = "NDVI") +
+  ggtitle("NDVI at month of min mean NDSSI")
 ```
 
    And here are the phase shifts/offsets against other measured parameters for each delta. The range, max and mean of NDVI and NDSSI is calculated from the timeseries, so it is really the max, min, and range of the monthly means (i.e., the maximum of the means, the minimum of the means, and the range of the mean). Offset is measured in months.
