@@ -10,14 +10,13 @@ editor_options:
   chunk_output_type: inline
 ---
 
-Let's import at all of the data that Simon and Matt pulled:
+Let's import at all of the data that Simon pulled:
 
 ```{r}
 library(tidyverse)
 library(gridExtra)
 library(maps)
 library(ggthemes)
-
 
 DeltasClean <- read_csv("../data/out/deltas_clean_v2.csv") 
 DeltaLocations <- read_csv("../data/DeltaLocations.csv")
@@ -81,15 +80,6 @@ rm(CompleteObsDeltas, EnoughMonths, DeltaMonthCounts)
 ```
 
 and extract some metrics; specifically I will make a timeseries of NDVI and NDSSI for each delta using the mean value for each month.
-
-From a quick look at the dat (not shown until much later in the doc):
-
-* Peaks in NDVI are not always correlated with peaks in NDSSI. in other words, maximums in sed concentration are not during maximums in standing biomass.
-* The peaks in both timeseries shift around depending on the delta:
-   + look at the correlation in the Nile.
-   + The anticorrelation in the Ebro,
-   + The slight phase shift in the Parana.
-
 
 ```{r  include = TRUE}
 #take the mean NDVI and NDSSI for each month, for each delta
@@ -192,6 +182,8 @@ ggplot(DeltaMaxMin, aes(y = Delta, x = OffsetDiff)) + geom_point() +
 
 ```
 
+Now let's examine the histograms of all 31 deltas... The months with the greatest mean NDVI, months with gretaest mean NDSSI, the monthly offset, and the skew of the NDSSI and NDVI timeseries.
+
 ```{r}
 ggplot(DeltaMaxMin, aes(x = MaxMeanNDVImonth)) + 
   geom_dotplot(binwidth = 1,dotsize = 0.5) + 
@@ -230,6 +222,7 @@ ggplot(DeltaMaxMin, aes(x = halfPeriodNDSSI)) +
 
 ```
 
+Ok, so the idea is that peak NDSSI is more effective if it occurs at moderate NDVI, so let's look at the NDVI value for the months with peak NDSSI. 
 ```{r}
 #extract NDVI value for each delta a the month of max NDSSI value
 
@@ -254,6 +247,9 @@ ggplot(DeltaNDVIatMaxNDSSI, aes(x = MeanNDVI)) +
   labs(x = "NDVI") +
   ggtitle("NDVI at month of maximum mean NDSSI")
 ```
+
+How about the NDVI for months with the lowest NDSSI
+
 ```{r}
 #extract NDVI value for each delta a the month of min NDSSI value
 
@@ -279,7 +275,7 @@ ggplot(DeltaNDVIatMinNDSSI, aes(x = MeanNDVI)) +
   ggtitle("NDVI at month of min mean NDSSI")
 ```
 
-   And here are the phase shifts/offsets against other measured parameters for each delta. The range, max and mean of NDVI and NDSSI is calculated from the timeseries, so it is really the max, min, and range of the monthly means (i.e., the maximum of the means, the minimum of the means, and the range of the mean). Offset is measured in months.
+Just to explore the data a bit, here are the phase shifts/offsets against other measured parameters for each delta. The range, max and mean of NDVI and NDSSI is calculated from the timeseries, so it is really the max, min, and range of the monthly means (i.e., the maximum of the means, the minimum of the means, and the range of the mean). Offset is measured in months.
 
 ```{r}
 slice1 <- ggplot(DeltaMaxMin, aes(y = rangeNDVI, x = MaxOffset)) + geom_point() 
@@ -351,7 +347,7 @@ ggplot(DeltaDatawLocations, aes(x = Absolute_Latitude, y = MaxOffset)) +
 ```
 
 
-Now for the maps:
+Now for some maps of the data maps:
 
 ```{r}
 world <- ggplot() +
@@ -394,8 +390,10 @@ DeltaNDSSIrangeMap
 
 ```
 
-Let's look at some of the data. 
-To quantify the water, we use NDSSI. to quantify land, we use NDVI.here is the time series for the Parana. 
+Let's look at some of the timeseries 
+To quantify the water, we use NDSSI. to quantify land, we use NDVI.
+
+First here is the function to make the plots:
 
 ```{r}
 DeltaPlotter <- function(DeltaName) {
@@ -475,38 +473,26 @@ DeltaPlotter <- function(DeltaName) {
 ```
 
 
-Here is an 'Offset' example from the Parana:
+Here is are some examples:
+
+* The peaks in both timeseries shift around depending on the delta:
+   + look at the correlation in the Orinoco nad Senegal
+   + The anticorrelation in the Parana and Ebro,
+   + The slight phase shift in the Magdalena.
+
 ```{r}
 DeltaPlotter("Parana")
-```
-
-
-and now an in-phase example from
-```{r}
 DeltaPlotter("Magdalena")
-```
-
-
-and the Ebro:
-```{r}
 DeltaPlotter("Ebro")
-```
-
-
-and the Tana
-```{r}
-DeltaPlotter("Tana")
-```
-
-and the Tana
-```{r}
+DeltaPlotter("Nile")
+DeltaPlotter("Senegal")
+DeltaPlotter("Orinoco")
 DeltaPlotter("Godavari")
 DeltaPlotter("Krishna")
 ```
 
 
-
-Now for some work with GRDC data:
+Now for some work with GRDC discharge data:
 ```{r}
 #import the data (monthly means for 21 stations)
 DeltasGRDC  <- read_csv("../data/GRDCstations.csv")
@@ -540,44 +526,7 @@ ggplot(DeltawLocGRDC, aes(y = Range_Discharge, x = rangeNDSSI)) + geom_point() +
 
 ggplot(DeltawLocGRDC, aes(y = Range_Discharge, x = MaxMeanNDSSI)) + geom_point() + scale_y_continuous(trans='log10')
 ```
-```{r}
-#import the data (monthly means for 21 stations)
-DeltasGRDC  <- read_csv("../data/GRDCstations.csv")
-```
 
-
-```{r}
-#calculate the mean of the monthly means
-DeltasGRDCwMean <- DeltasGRDC %>% 
-    rowwise() %>% 
-    mutate(MMD=mean(c(January,February,March,April,
-                    May,June,July,August,
-                    September,October,November,December)))
-
-DeltasGRDCwMean <- DeltasGRDCwMean %>% 
-  rowwise() %>% 
-  mutate(Range_Discharge = max(c(January,February,March,April,
-              May,June,July,August,
-              September,October,November,December)) - 
-           min(c(January,February,March,April,
-              May,June,July,August,
-              September,October,November,December))
-           )
-        
-
-#join to location data:
-DeltawLocGRDC <- left_join(DeltaDatawLocations, DeltasGRDCwMean, by = c("Delta" = "Deltas"))
-
-
-#plot mean of monthly means against NDSSI
-ggplot(DeltawLocGRDC, aes(y = Range_Discharge, x = rangeNDSSI)) + geom_point() + scale_y_continuous(trans='log10')
-
-#ggsave("GRDCNDSSI.pdf", width = 6, height = 4)
-```
-
-```{r}
-ggplot(DeltawLocGRDC, aes(y = Range_Discharge, x = MaxMeanNDSSI)) + geom_point() + scale_y_continuous(trans='log10')
-```
 
 ```{r}
 #rename the months by numbers and tidy the GRDC data
@@ -616,6 +565,8 @@ ggplot(DeltaMaxMinDischarge, aes(y = Delta, x = DissOff)) + geom_point() +
   ggtitle("DisOffset")
 ```
 
+Look at GRDC data by latitude:
+
 ```{r}
 #join lat data
 DeltaDatawLocations <- left_join(DeltaMaxMinDischarge, DeltaLocations, by = c("Delta" = "Deltas"))
@@ -631,6 +582,7 @@ ggplot(DeltaDatawLocations, aes(x = Absolute_Latitude, y = DissOff)) + geom_poin
 #ggsave("DisOffset.pdf", width = 6, height = 4)
 ```
 
+And now on a map:
 ```{r}
 #plot offset on map
 DeltaDisOffsetMap <- world +
