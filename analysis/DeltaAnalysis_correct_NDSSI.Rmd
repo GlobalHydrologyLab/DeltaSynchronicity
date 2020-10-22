@@ -240,6 +240,12 @@ DeltaNDVIatMaxNDSSI <- DeltaNDVIatMaxNDSSI %>%
 
 DeltaNDVIatMaxNDSSI
 
+M <- DeltaNDVIatMaxNDSSI %>%
+  ggplot( aes(x=MeanNDVI)) +
+    geom_histogram( color="#e9ecef", alpha=0.6)
+
+M
+   
 ggplot(DeltaNDVIatMaxNDSSI, aes(x = MeanNDVI)) + 
   geom_dotplot(binwidth = 0.1, dotsize = 0.25) + 
   scale_y_continuous(NULL, breaks = NULL)  + 
@@ -247,6 +253,48 @@ ggplot(DeltaNDVIatMaxNDSSI, aes(x = MeanNDVI)) +
   labs(x = "NDVI") +
   ggtitle("NDVI at month of maximum mean NDSSI")
 ```
+
+And what if NDVI peak was one month sooner:
+```{r}
+#extract NDVI value for each delta at one month earlier than max NDSSI value
+
+DeltaNDVIatEarlyNDSSI <- DeltaMaxMin %>%
+  select(Delta,MaxMeanNDSSImonth)
+
+DeltaNDVIatEarlyNDSSI <- DeltaNDVIatEarlyNDSSI %>% 
+  mutate(EarlyNDSSI = if_else(MaxMeanNDSSImonth == 1, 
+                              12,
+                              MaxMeanNDSSImonth-1)
+         )
+
+DeltaNDVIatEarlyNDSSI <- DeltaNDVIatEarlyNDSSI %>%
+  select (-c(MaxMeanNDSSImonth))
+
+DeltaMeansToJoin <- DeltaMeans %>%
+  filter(surface == 'Land')
+
+DeltaNDVIatEarlyNDSSI <- left_join(DeltaNDVIatEarlyNDSSI, DeltaMeansToJoin, 
+                                 by = c('Delta', 'EarlyNDSSI' ='month'))
+ 
+DeltaNDVIatEarlyNDSSI <- DeltaNDVIatEarlyNDSSI %>%
+  select (-c(surface, MeanNDSSI))
+
+DeltaNDVIatEarlyNDSSI
+
+n <- DeltaNDVIatEarlyNDSSI %>%
+  ggplot( aes(x=MeanNDVI)) +
+    geom_histogram( color="#e9ecef", alpha=0.6)
+
+n
+
+ggplot(DeltaNDVIatEarlyNDSSI, aes(x = MeanNDVI)) + 
+  geom_dotplot(binwidth = 0.1, dotsize = 0.25) + 
+  scale_y_continuous(NULL, breaks = NULL)  + 
+  xlim(0,1) +
+  labs(x = "NDVI") +
+  ggtitle("NDVI at 1 month earlier than maximum mean NDSSI")
+```
+
 
 How about the NDVI for months with the lowest NDSSI
 
@@ -265,7 +313,13 @@ DeltaNDVIatMinNDSSI <- left_join(DeltaNDVIatMinNDSSI, DeltaMeansToJoin,
 DeltaNDVIatMinNDSSI <- DeltaNDVIatMinNDSSI %>%
   select (-c(surface, MeanNDSSI))
 
-DeltaNDVIatMaxNDSSI
+DeltaNDVIatMinNDSSI
+
+p <- DeltaNDVIatMinNDSSI %>%
+  ggplot( aes(x=MeanNDVI)) +
+    geom_histogram( color="#e9ecef", alpha=0.6)
+
+p
 
 ggplot(DeltaNDVIatMinNDSSI, aes(x = MeanNDVI)) + 
   geom_dotplot(binwidth = 0.1, dotsize = 0.25) + 
@@ -274,6 +328,7 @@ ggplot(DeltaNDVIatMinNDSSI, aes(x = MeanNDVI)) +
   labs(x = "NDVI") +
   ggtitle("NDVI at month of min mean NDSSI")
 ```
+
 
 Just to explore the data a bit, here are the phase shifts/offsets against other measured parameters for each delta. The range, max and mean of NDVI and NDSSI is calculated from the timeseries, so it is really the max, min, and range of the monthly means (i.e., the maximum of the means, the minimum of the means, and the range of the mean). Offset is measured in months.
 
