@@ -78,19 +78,13 @@ rm(CompleteObsDeltas, EnoughMonths, EnoughObsPerMonth, DeltaMonthCounts, DeltasC
 
 ```
 
-and extract some metrics; specifically I will make a timeseries of NDVI and NDSSI for each delta using the mean value for each month.
+Ok, now let's organize this raw data into 1 dataframe, with delta, max and min NDVI (and month), max and min NDSSI(and month), NDVI and NDSSI range.
 
 ```{r  include = TRUE}
 #take the mean NDVI and NDSSI for each month, for each delta
 DeltaMeans <- DeltasCleaner %>%
   group_by(Delta, month, surface) %>%
   summarize(MeanNDVI = mean(ndvi, na.rm = TRUE), MeanNDSSI = mean(ndssi, na.rm = TRUE))
-
-#make a 9 column data frame with:
-#delta, 
-#max and min NDVI month, 
-#NDSSI max and min month, 
-#max and min values for both NDVI and NDSSI
 
 #####
 
@@ -139,7 +133,7 @@ DeltaMaxMin <- DeltaMaxMin %>%
   select(-surface.x, -surface.x.x, -surface.y, -surface.y.y)
 
 ```
-And now we can look at the phase shifts between these two time series (the timeseries of mean NDVI and mean NDSSI). Here are the phase shifts (in month) for each delta:
+And now we calculate phase shifts between NDVI and NDSSI for each delta
 ```{r }
 #compare offset
 DeltaMaxMin <- mutate(DeltaMaxMin, 
@@ -169,15 +163,15 @@ ggplot(DeltaMaxMin, aes(y = Delta, x = MaxOffset)) + geom_point() +
   expand_limits(x = c(0,6))  + 
   ggtitle("MaxOffset")
 
-ggplot(DeltaMaxMin, aes(y = Delta, x = MinOffset)) + geom_point() + 
-  scale_x_discrete(limits = c(1:6), breaks = c(1:6)) +
-  expand_limits(x = c(0,6))  + 
-  ggtitle("MinOffset")
-
-ggplot(DeltaMaxMin, aes(y = Delta, x = OffsetDiff)) + geom_point() + 
-  scale_x_discrete(limits = c(1:6), breaks = c(1:6)) +
-  expand_limits(x = c(0,6))  + 
-  ggtitle("Offset Difference")
+# ggplot(DeltaMaxMin, aes(y = Delta, x = MinOffset)) + geom_point() + 
+#   scale_x_discrete(limits = c(1:6), breaks = c(1:6)) +
+#   expand_limits(x = c(0,6))  + 
+#   ggtitle("MinOffset")
+# 
+# ggplot(DeltaMaxMin, aes(y = Delta, x = OffsetDiff)) + geom_point() + 
+#   scale_x_discrete(limits = c(1:6), breaks = c(1:6)) +
+#   expand_limits(x = c(0,6))  + 
+#   ggtitle("Offset Difference")
 
 ```
 
@@ -185,7 +179,7 @@ Now let's examine the histograms of all 31 deltas... The months with the greates
 
 ```{r}
 ggplot(DeltaMaxMin, aes(x = MaxMeanNDVImonth)) + 
-  geom_bar() + 
+  geom_bar(fill=3) + 
   scale_y_continuous(NULL, breaks = NULL) + 
   scale_x_discrete(limits = c(1:12), breaks = c(1:12)) + 
   labs(x = "Month") +
@@ -204,6 +198,13 @@ ggplot(DeltaMaxMin, aes(x = MaxOffset)) +
   scale_x_discrete(limits = c(0:6), breaks = c(0:6)) + 
   labs(x = "Months") +
   ggtitle("Months Offset between NDVI and NDSSI")
+
+ggplot(data= DeltaMaxMin) + 
+  geom_bar(aes(x=MaxMeanNDVImonth),fill=3, alpha = 0.6) + 
+  geom_bar(aes(x=MaxMeanNDSSImonth),fill=1, alpha = 0.6) +
+  xlim(1,12) +
+  labs(x = "NDVI") +
+  ggtitle("Month of maximum mean NDSSI")
 
 ```
 
@@ -272,7 +273,11 @@ ggplot(data = DeltaDatawLocations) +
   facet_matrix(cols = vars(rangeNDVI:MaxMeanNDSSI), rows = vars(Absolute_Latitude) ,
                switch = "x") + theme(aspect.ratio=1)
 ```
+
+
 So Offset and Lat seem to have a relationship:
+
+
 ```{r}
 #find the linear model 
 DeltaOffset_lm <- lm( Absolute_Latitude ~ MaxOffset, data = DeltaDatawLocations) 
@@ -447,13 +452,24 @@ DeltasGRDC <- DeltasGRDC %>%
            ) %>%
   right_join(DeltaDatawLocations, by = c("Deltas" = "Delta"))
 
+#rename the months by numbers and tidy the GRDC data
+DeltasDischarge <- DeltasGRDC %>%
+  rename(Delta = Deltas,"1" = January, "2"= February, "3"= March, "4"= April,
+         "5"=May, "6"=June, "7"=July, "8"= August, "9" = September, "10"=October, 
+         "11"=November, "12"=December) %>%
+  select(Delta, "1" , "2" , "3", "4","5", "6", "7", "8", "9", "10", "11", "12") %>%
+  pivot_longer(-Delta, names_to = "month", values_to = "discharge")
 
-#plot mean of monthly means against NDSSI
-ggplot(DeltasGRDC, aes(y = Range_Discharge, x = rangeNDSSI)) + geom_point() + scale_y_continuous(trans='log10')
+DeltasDischarge$month = as.numeric(DeltasDischarge$month)
 
-#ggsave("GRDCNDSSI.pdf", width = 6, height = 4)
+DisNDSSI <- DeltaMeans %>% 
+  filter(surface == 'Water')  %>% 
+  select (-c(MeanNDVI)) %>%
+  left_join(DeltasDischarge, by = c('Delta', 'month')) %>%
+  drop_na(discharge)
 
-ggplot(DeltasGRDC, aes(y = Range_Discharge, x = MaxMeanNDSSI)) + geom_point() + scale_y_continuous(trans='log10')
+#plot monthly means against NDSSI for deltas with GRDC discharge data
+ggplot(DisNDSSI, aes(y=discharge, x=MeanNDSSI)) + geom_point(shape=1) + facet_wrap( ~ Delta, ncol=4, , scales="free_y")
+
 ```
-
 
