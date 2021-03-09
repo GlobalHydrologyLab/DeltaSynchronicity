@@ -18,8 +18,13 @@ library(gridExtra)
 library(maps)
 library(ggthemes)
 
-DeltasClean <- read_csv("../data/out/deltas_clean_v2.csv") 
+## Original
+DeltasClean <- read_csv('../data/out/deltas_clean_v2.csv')
 DeltaLocations <- read_csv("../data/DeltaLocations.csv")
+
+## With Added Deltas
+#DeltasClean <- read_csv("../data/out/deltas_clean_96.csv") 
+#DeltaLocations <- read_csv("../data/DeltaLocations_96.csv")
 ```
 
 As a reminder, for each of the 47 deltas there are measurements of Land & Water areas at Upstream, Downstream and 'Middle' locations on the delta. We first lump all the observations together, and look to see which Deltas have many observations:
@@ -31,19 +36,18 @@ DeltaCounts
 ```
 
 
+In the above heat map, dark colors (and no color) represent data paucity (and data gaps). Deltas with light colors (e.g., the Parana, Nile, Ebro, Colorado, Brahmani) have lots of data, spread out through the months of the year.
+
 Now, by each month.. where the colorbar represents the number of observations (n) for each month for a given delta:
+
 ```{r}
 DeltaObsPerMonth <- count(DeltasClean, Delta, month)
 
-ggplot(DeltaObsPerMonth, aes(y = Delta, x = month, fill=n)) + geom_tile() + 
+ggplot(DeltaObsPerMonth, aes(y = Delta, x = factor(month), fill=n)) + geom_tile() + 
   scale_x_discrete(limits = c(1:12), breaks = c(1:12)) +
   expand_limits(x = c(1,12)) + 
   scale_fill_gradient( trans = 'log' )
-
 ```
-
-
-In the above heat map, dark colors (and no color) represent data paucity (and data gaps). Deltas with light colors (e.g., the Parana, Nile, Ebro, Colorado, Brahmani) have lots of data, spread out through the months of the year.
 
 
 I'll remove/subset the deltas with sparse coverage (specifically, months with no coverage).... 
@@ -98,7 +102,7 @@ DeltaMeans <- DeltasCleaner %>%
 DeltaMaxNDVI <- 
   DeltaMeans %>% 
   filter(surface == 'Land')  %>% 
-  select (-c(MeanNDSSI)) %>% 
+  select (-c(MeanNDSSI, surface)) %>% 
   group_by(Delta) %>% 
   slice(which.max(MeanNDVI)) %>% 
   rename(MaxMeanNDVImonth = month, MaxMeanNDVI = MeanNDVI)
@@ -106,7 +110,7 @@ DeltaMaxNDVI <-
 DeltaMaxNDSSI <- 
   DeltaMeans %>% 
   filter(surface == 'Water')  %>% 
-  select (-c(MeanNDVI)) %>% 
+  select (-c(MeanNDVI, surface)) %>% 
   group_by(Delta) %>% 
   slice(which.max(MeanNDSSI)) %>% 
   rename(MaxMeanNDSSImonth = month, MaxMeanNDSSI = MeanNDSSI)
@@ -114,7 +118,7 @@ DeltaMaxNDSSI <-
 DeltaMinNDVI <- 
   DeltaMeans %>% 
   filter(surface == 'Land')  %>% 
-  select (-c(MeanNDSSI)) %>% 
+  select (-c(MeanNDSSI, surface)) %>% 
   group_by(Delta) %>% 
   slice(which.min(MeanNDVI)) %>% 
   rename(MinMeanNDVImonth = month, MinMeanNDVI = MeanNDVI)
@@ -122,7 +126,7 @@ DeltaMinNDVI <-
 DeltaMinNDSSI <- 
   DeltaMeans %>% 
   filter(surface == 'Water')  %>% 
-  select (-c(MeanNDVI)) %>% 
+  select (-c(MeanNDVI, surface)) %>% 
   group_by(Delta) %>% 
   slice(which.min(MeanNDSSI)) %>% 
   rename(MinMeanNDSSImonth = month, MinMeanNDSSI = MeanNDSSI)
@@ -541,7 +545,7 @@ DeltaPlotter("Magdalena")
 DeltaPlotter("Ebro")
 DeltaPlotter("Nile")
 DeltaPlotter("Senegal")
-DeltaPlotter("Orinoco")
+#DeltaPlotter("Orinoco")
 DeltaPlotter("Godavari")
 DeltaPlotter("Krishna")
 ```
