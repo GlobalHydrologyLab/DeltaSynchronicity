@@ -10,22 +10,26 @@ editor_options:
   chunk_output_type: inline
 ---
 
-Let's import at all of the data that Simon pulled:
-
+Load packages
 ```{r}
 library(tidyverse)
 library(gridExtra)
 library(maps)
 library(ggthemes)
 
+```
+
+Let's import at all of the data that Simon pulled:
+```{r}
 ## Original
-DeltasClean <- read_csv('../data/out/deltas_clean_v2.csv')
-DeltaLocations <- read_csv("../data/DeltaLocations.csv")
+# DeltasClean <- read_csv('../data/out/deltas_clean_v2.csv')
+# DeltaLocations <- read_csv("../data/DeltaLocations.csv")
 
 ## With Added Deltas
-#DeltasClean <- read_csv("../data/out/deltas_clean_96.csv") 
-#DeltaLocations <- read_csv("../data/DeltaLocations_96.csv")
+DeltasClean <- read_csv("../data/out/deltas_clean_96.csv")
+DeltaLocations <- read_csv("../data/DeltaLocations_96.csv")
 ```
+
 
 As a reminder, for each of the 47 deltas there are measurements of Land & Water areas at Upstream, Downstream and 'Middle' locations on the delta. We first lump all the observations together, and look to see which Deltas have many observations:
 
@@ -540,14 +544,20 @@ Here is are some examples:
    + The slight phase shift in the Magdalena.
 
 ```{r}
-DeltaPlotter("Parana")
-DeltaPlotter("Magdalena")
-DeltaPlotter("Ebro")
-DeltaPlotter("Nile")
-DeltaPlotter("Senegal")
-#DeltaPlotter("Orinoco")
+# DeltaPlotter("Parana")
+# DeltaPlotter("Magdalena")
+# DeltaPlotter("Ebro")
+# DeltaPlotter("Nile")
+# DeltaPlotter("Senegal")
+DeltaPlotter("Orinoco")
 DeltaPlotter("Godavari")
 DeltaPlotter("Krishna")
+DeltaPlotter("Kampar")
+DeltaPlotter("Parnaiba")
+DeltaPlotter("Fly")
+DeltaPlotter("Mekong")
+DeltaPlotter("Sepik")
+DeltaPlotter("Atrato")
 ```
 
 
