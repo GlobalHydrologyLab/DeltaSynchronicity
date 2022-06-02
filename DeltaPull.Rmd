@@ -65,11 +65,11 @@ dClean <- deltas %>%
          year = year(date),
          ndvi = (nir-red)/(nir+red),
          evi = 2.5*((nir-red)/(nir + 6*red - 7.5*blue + 1)),
-         evi = ifelse(abs(evi) > 10000, NA, evi),
+         evi = ifelse(abs(evi) > 10000, NA, evi), 
          savi = ((nir-red)/(nir+red+0.5))*1.5,
          gr = green/red,
-         ndssi = (blue-nir)/(blue + nir),
-         nsmi = (red + green - blue)/(red + green + blue)) %>%
+         ndssi = (blue - nir)/(nir + blue), #Reversed order of this from lit convention to make higher NDSSI = more sediment
+         nsmi = (red + green - blue)/(red + green + blue)) %>% #Added NSMI to these indices
   group_by(Delta, location, surface, year, month) %>%
   summarize(ndvi = mean(ndvi, na.rm = T),
             red = mean(red, na.rm = T),
