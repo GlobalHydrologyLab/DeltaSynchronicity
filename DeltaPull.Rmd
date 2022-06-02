@@ -40,11 +40,12 @@ geo$surface[geo$surface == "Land'"] <- 'Land'
 
 ## Re-write the shapefile for the pull
 st_write(geo, 'data/in/DeltaSampleLocations_96.shp')
-
+```
 
 ## Read in the data from EE, code for pull script can be found
 ## at https://code.earthengine.google.com/1d647a3d92568d22fe0b2f528b9e5ac2?noload=true
 
+```{r}
 deltas <- read_csv('data/in/DeltaEEExports/landExport.csv') %>%
   bind_rows(read_csv('data/in/DeltaEEExports/WaterExport.csv')) %>%
   rename_all(tolower) %>%
@@ -64,17 +65,19 @@ dClean <- deltas %>%
          year = year(date),
          ndvi = (nir-red)/(nir+red),
          evi = 2.5*((nir-red)/(nir + 6*red - 7.5*blue + 1)),
-         evi = ifelse(abs(evi) > 10000, NA, evi),
+         evi = ifelse(abs(evi) > 10000, NA, evi), 
          savi = ((nir-red)/(nir+red+0.5))*1.5,
          gr = green/red,
-         ndssi = (blue-nir)/(blue + nir)) %>%
+         ndssi = (blue - nir)/(nir + blue), #Reversed order of this from lit convention to make higher NDSSI = more sediment
+         nsmi = (red + green - blue)/(red + green + blue)) %>% #Added NSMI to these indices
   group_by(Delta, location, surface, year, month) %>%
   summarize(ndvi = mean(ndvi, na.rm = T),
             red = mean(red, na.rm = T),
             evi = mean(evi, na.rm = T),
             savi = mean(savi, na.rm = T),
             gr = mean(gr, na.rm = T),
-            ndssi = mean(ndssi, na.rm = T))
+            ndssi = mean(ndssi, na.rm = T),
+            nsmi = mean(nsmi, na.rm = T))
 
 write_csv(dClean, 'data/out/deltas_clean_96.csv')
 
